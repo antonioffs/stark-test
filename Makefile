@@ -1,28 +1,28 @@
 .PHONY: migrate makemigrations check shell test build up up-d down logs
 
-# Runs a one-off `manage.py` command: starts redis, executes the command in
-# a throwaway web container, then stops redis. Assumes no stack is running.
-define run_management_command
-	@docker compose run --rm web python manage.py $(1); \
+# Runs a one-off command in a throwaway web container: starts redis,
+# executes the command, then stops redis. Assumes no stack is running.
+define run_in_container
+	@docker compose run --rm web $(1); \
 	status=$$?; \
 	docker compose stop redis; \
 	exit $$status
 endef
 
 migrate:
-	$(call run_management_command,migrate)
+	$(call run_in_container,python manage.py migrate)
 
 makemigrations:
-	$(call run_management_command,makemigrations)
+	$(call run_in_container,python manage.py makemigrations)
 
 check:
-	$(call run_management_command,check)
+	$(call run_in_container,python manage.py check)
 
 shell:
-	$(call run_management_command,shell)
+	$(call run_in_container,python manage.py shell)
 
 test:
-	$(call run_management_command,test)
+	$(call run_in_container,pytest)
 
 build:
 	docker compose build
