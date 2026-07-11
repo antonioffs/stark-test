@@ -123,3 +123,7 @@ CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULE = {}
+
+STARKBANK_KEY = config('STARKBANK_KEY').encode().decode('unicode_escape')
+STARKBANK_PROJECT_ID = config('STARKBANK_PROJECT_ID')
+STARKBANK_ENVIRONMENT = config('STARKBANK_ENVIRONMENT', default='sandbox')
