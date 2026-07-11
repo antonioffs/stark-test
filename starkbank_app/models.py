@@ -30,3 +30,7 @@ class Invoice(models.Model):
 
     def __str__(self):
         return f'{self.uuid} - {self.gateway_reference_id} ({self.status})'
+
+    def amount_display(self):
+        return f'R$ {self.amount / 100:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+    amount_display.short_description = 'Amount'

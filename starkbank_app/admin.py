@@ -18,7 +18,7 @@ def trigger_invoice_emission(modeladmin, request, queryset):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('uuid', 'customer', 'gateway_reference_id', 'amount', 'status', 'created_at')
+    list_display = ('uuid', 'customer', 'gateway_reference_id', 'amount_display', 'status', 'created_at')
     list_filter = ('status',)
     search_fields = ('gateway_reference_id', 'customer__fullname', 'customer__document')
     actions = [trigger_invoice_emission]
