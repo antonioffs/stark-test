@@ -25,7 +25,7 @@ def generate_invoices():
     logger.info(f'generate_invoices: finished, generated {invoices_count} invoices')
 
 
-def emit_invoice(invoice):
+def emit_invoice(invoice, user):
     logger.info(f'emit_invoice: starting for invoice {invoice.uuid}')
 
     claimed = Invoice.objects.filter(pk=invoice.pk, status=Invoice.Status.PENDING).update(
@@ -40,7 +40,7 @@ def emit_invoice(invoice):
         tax_id=invoice.customer.document,
         name=invoice.customer.fullname,
     )
-    created_invoice = starkbank.invoice.create([stark_invoice], user=StarkBankClient.client())[0]
+    created_invoice = starkbank.invoice.create([stark_invoice], user=user)[0]
 
     invoice.gateway_reference_id = created_invoice.id
     invoice.save(update_fields=['gateway_reference_id'])
@@ -53,8 +53,13 @@ def emit_invoices():
     eligible_count = random.randint(8, 12)
     logger.info(f'emit_invoices: starting, up to {eligible_count} invoices eligible')
 
-    pending_invoices = Invoice.objects.filter(status=Invoice.Status.PENDING)[:eligible_count]
+    user = StarkBankClient.client()
+    pending_invoices = (
+        Invoice.objects.filter(status=Invoice.Status.PENDING)
+        .select_related('customer')
+        .order_by('created_at')[:eligible_count]
+    )
     for invoice in pending_invoices:
-        emit_invoice(invoice)
+        emit_invoice(invoice, user)
 
     logger.info('emit_invoices: finished')
