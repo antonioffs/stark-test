@@ -1,3 +1,12 @@
+import starkbank
 from django.test import TestCase
 
-# Create your tests here.
+from starkbank_app.client import StarkBankClient
+
+
+class StarkBankClientTest(TestCase):
+
+    def test_communicates_with_starkbank_and_retrieves_balance(self):
+        balance = starkbank.balance.get(user=StarkBankClient.client())
+
+        self.assertIsNotNone(balance.id)
