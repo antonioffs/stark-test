@@ -11,8 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-
 from decouple import config
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -122,7 +122,16 @@ STATIC_URL = 'static/'
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_BEAT_SCHEDULE = {}
+CELERY_BEAT_SCHEDULE =  {
+    'generate-invoices-every-hour': {
+      'task': 'starkbank_app.tasks.generate_invoices',
+      'schedule': timedelta(hours=1),
+    },
+    'emit-invoices-every-3-hours': {
+      'task': 'starkbank_app.tasks.emit_invoices',
+      'schedule': timedelta(hours=3),
+    },
+}
 
 STARKBANK_KEY = config('STARKBANK_KEY').encode().decode('unicode_escape')
 STARKBANK_PROJECT_ID = config('STARKBANK_PROJECT_ID')
