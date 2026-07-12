@@ -1,35 +1,36 @@
-# stark-test
+# Starkbank challenge
 
-Desafio de desenvolvedor backend da Stark Bank.
+Stark Bank backend developer challenge.
 
-## Requisitos
+## Requirements
 
-- Docker e Docker Compose (plugin `docker compose`)
+- Docker and Docker Compose (`docker compose` plugin)
 - `make`
 
-## Configuração
+## Setup
 
-Crie o arquivo `.env` a partir do exemplo:
+Create the `.env` file from the example:
 
 ```bash
 cp .env.example .env
 ```
 
-## Comandos
+## Commands
 
 ```bash
-make build            # builda as imagens
-make up               # sobe os serviços (web, redis, celery-worker, celery-beat)
-make up-d             # sobe os serviços em background
-make down             # derruba os serviços
-make logs             # acompanha os logs
+make build            # build the images
+make up               # start the services (web, redis, celery-worker, celery-beat)
+make up-d             # start the services in the background
+make down             # stop the services
+make logs             # follow the logs
 
-make migrate          # aplica as migrations
-make makemigrations   # gera novas migrations
-make createsuperuser  # cria um superusuário para acesso ao admin
-make check            # roda o system check do Django
-make shell            # abre o shell do Django
-make test             # roda os testes
+make migrate          # apply migrations
+make makemigrations   # generate new migrations
+make createsuperuser  # create a superuser for admin access
+make check            # run Django's system check
+make shell            # open the Django shell
+make format           # format files
+make test             # run the tests
 ```
 
-A aplicação fica disponível em `http://localhost:8000`.
+The application is available at `http://localhost:8000`.
