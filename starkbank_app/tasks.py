@@ -49,16 +49,18 @@ def emit_invoice(invoice, user):
 
 
 @shared_task
-def emit_invoices():
-    eligible_count = random.randint(8, 12)
-    logger.info(f'emit_invoices: starting, up to {eligible_count} invoices eligible')
-
+def emit_invoices(invoice_ids: list = None):
     user = StarkBankClient.client()
-    pending_invoices = (
-        Invoice.objects.filter(status=Invoice.Status.PENDING)
-        .select_related('customer')
-        .order_by('created_at')[:eligible_count]
-    )
+    pending_invoices = Invoice.objects.filter(status=Invoice.Status.PENDING).select_related('customer')
+
+    if invoice_ids:
+        logger.info(f'emit_invoices: starting for {len(invoice_ids)} selected invoices')
+        pending_invoices = pending_invoices.filter(pk__in=invoice_ids)
+    else:
+        eligible_count = random.randint(8, 12)
+        logger.info(f'emit_invoices: starting, up to {eligible_count} invoices eligible')
+        pending_invoices = pending_invoices.order_by('created_at')[:eligible_count]
+
     for invoice in pending_invoices:
         emit_invoice(invoice, user)
 

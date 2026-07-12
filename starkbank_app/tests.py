@@ -124,6 +124,25 @@ def test_emit_invoice_does_not_re_emit_an_already_processing_invoice(mock_create
     assert invoice.status == Invoice.Status.PROCESSING
     assert invoice.gateway_reference_id == 'gateway-id-fixed'
 
+
+@pytest.mark.django_db
+@patch('starkbank_app.tasks.starkbank.invoice.create', side_effect=fake_starkbank_create)
+def test_emit_invoices_with_ids_emits_all_selected_invoices_ignoring_the_random_cap(mock_create):
+    selected = [_create_pending_invoice() for _ in range(15)]
+    not_selected = _create_pending_invoice()
+
+    emit_invoices(invoice_ids=[invoice.pk for invoice in selected])
+
+    assert mock_create.call_count == 15
+    for invoice in selected:
+        invoice.refresh_from_db()
+        assert invoice.status == Invoice.Status.PROCESSING
+        assert invoice.gateway_reference_id is not None
+
+    not_selected.refresh_from_db()
+    assert not_selected.status == Invoice.Status.PENDING
+    assert not_selected.gateway_reference_id is None
+
 @pytest.mark.django_db
 @patch('starkbank_app.views.starkbank.event.parse')
 def test_webhook_rejects_invalid_signature(mock_parse, client):

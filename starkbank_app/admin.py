@@ -10,10 +10,16 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ('uuid', 'fullname', 'document')
 
 
-@admin.action(description='Disparar emissão de novas invoices')
+@admin.action(description='Emit selected invoices')
 def trigger_invoice_emission(modeladmin, request, queryset):
+    invoice_ids = list(queryset.values_list('pk', flat=True))
+    emit_invoices.delay(invoice_ids)
+    modeladmin.message_user(request, 'Emit selected invoices runnin in background.')
+
+@admin.action(description='Emit all pending invoices')
+def trigger_pending_invoice_emission(modeladmin, request, queryset):
     emit_invoices.delay()
-    modeladmin.message_user(request, 'Emissão de invoices disparada em background.')
+    modeladmin.message_user(request, 'Emit pending invoices running in background.')
 
 
 @admin.register(Invoice)
@@ -21,7 +27,7 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'gateway_reference_id', 'amount_display', 'status', 'created_at')
     list_filter = ('status',)
     search_fields = ('gateway_reference_id', 'customer__uuid', 'customer__fullname', 'customer__document')
-    actions = [trigger_invoice_emission]
+    actions = [trigger_invoice_emission, trigger_pending_invoice_emission]
 
 
 @admin.register(WebhookInvoiceEvent)
