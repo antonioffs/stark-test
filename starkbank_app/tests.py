@@ -4,18 +4,21 @@ from unittest.mock import patch
 
 import pytest
 import starkbank
-from django.utils import timezone
 from starkbank.error import InvalidSignatureError
 
 from starkbank_app.client import StarkBankClient
 from starkbank_app.fake import generate_cpf, generate_fullname, is_valid_cpf
 from starkbank_app.models import Customer, Invoice, WebhookInvoiceEvent
-from starkbank_app.tasks import emit_invoice, emit_invoices, generate_invoices
+from starkbank_app.tasks import emit_invoice, emit_invoices, generate_invoices, send_invoice_transfer
 
-
+class FakeCreatedTransfer:
+    def __init__(self, transfer_id):
+        self.id = transfer_id
 
 class FakeInvoiceLog:
-    def __init__(self, event_type, invoice_gateway_id, amount=1000, fee=50, interest=10, expiration=timedelta(days=2)):
+    def __init__(self, event_type, invoice_gateway_id, amount=1000, fee=50,
+                 interest=10, expiration=timedelta(days=2)
+                 ):
         self.type = event_type
         self.invoice = type('FakeInvoice', (), {
             'id': invoice_gateway_id,
@@ -77,7 +80,6 @@ def fake_starkbank_create(invoices, user=None):
 def _create_pending_invoice():
     customer = Customer.objects.create(fullname='Fulano de Tal', document='12345678901')
     return Invoice.objects.create(customer=customer, amount=1000)
-
 
 @pytest.mark.django_db
 def test_generate_invoices_creates_between_8_and_12_pending_invoices():
@@ -319,3 +321,73 @@ def test_webhook_records_event_without_matching_local_invoice(mock_parse, client
     assert response.status_code == 200
     event = WebhookInvoiceEvent.objects.get(event_id='event-1')
     assert event.invoice is None
+
+def _create_paid_invoice(gateway_reference_id='gateway-id-fixed', amount=1000):
+    customer = Customer.objects.create(fullname='Fulano de Tal', document='12345678901')
+    return Invoice.objects.create(
+        customer=customer, amount=amount, status=Invoice.Status.PAID, gateway_reference_id=gateway_reference_id,
+    )
+
+@pytest.mark.django_db
+@patch('starkbank_app.tasks.starkbank.transfer.create', return_value=[FakeCreatedTransfer('transfer-id-fixed')])
+def test_send_invoice_transfer_sends_net_amount_and_marks_invoice_transferred(mock_create):
+    invoice = _create_paid_invoice()
+
+    send_invoice_transfer(gateway_reference_id='gateway-id-fixed', amount=1000, fee=50)
+
+    assert mock_create.call_count == 1
+    sent_transfer = mock_create.call_args.args[0][0]
+    assert sent_transfer.amount == 950
+    assert sent_transfer.external_id == 'gateway-id-fixed'
+    assert sent_transfer.bank_code == '20018183'
+
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.TRANSFERRED
+    assert invoice.gateway_transfer_reference_id == 'transfer-id-fixed'
+
+
+@pytest.mark.django_db
+@patch('starkbank_app.tasks.starkbank.transfer.create', return_value=[FakeCreatedTransfer('transfer-id-fixed')])
+def test_send_invoice_transfer_does_not_send_twice_for_the_same_invoice(mock_create):
+    _create_paid_invoice()
+
+    send_invoice_transfer(gateway_reference_id='gateway-id-fixed', amount=1000, fee=50)
+    send_invoice_transfer(gateway_reference_id='gateway-id-fixed', amount=1000, fee=50)
+
+    assert mock_create.call_count == 1
+
+
+@pytest.mark.django_db
+@patch('starkbank_app.tasks.starkbank.transfer.create', return_value=[FakeCreatedTransfer('transfer-id-fixed')])
+def test_send_invoice_transfer_skips_invoice_that_is_not_paid(mock_create):
+    invoice = _create_pending_invoice()
+    invoice.gateway_reference_id = 'gateway-id-fixed'
+    invoice.save()
+
+    send_invoice_transfer(gateway_reference_id='gateway-id-fixed', amount=1000, fee=50)
+
+    assert mock_create.call_count == 0
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.PENDING
+
+
+@pytest.mark.django_db
+@patch('starkbank_app.services.send_invoice_transfer.delay')
+@patch('starkbank_app.views.starkbank.event.parse')
+def test_webhook_dispatches_transfer_task_on_paid_event(mock_parse, mock_delay, client):
+    invoice = _create_pending_invoice()
+    invoice.gateway_reference_id = 'gateway-id-fixed'
+    invoice.save()
+
+    mock_parse.return_value = FakeEvent(
+        event_id='event-1', subscription='invoice',
+        log=FakeInvoiceLog('paid', 'gateway-id-fixed', amount=1000, fee=50),
+    )
+
+    client.post(
+        '/invoice-webhook/starkbank', data='{}', content_type='application/json',
+        HTTP_DIGITAL_SIGNATURE='valid',
+    )
+
+    mock_delay.assert_called_once_with(gateway_reference_id='gateway-id-fixed', amount=1000, fee=50)
+
