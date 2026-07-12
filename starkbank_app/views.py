@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 @require_POST
 def invoice_process_webhook(request):
     signature = request.headers.get('Digital-Signature', '')
+    payload = request.body.decode('utf-8')
 
     try:
         event = starkbank.event.parse(
-            content=request.body.decode('utf-8'),
+            content=payload,
             signature=signature,
             user=StarkBankClient.client(),
         )
@@ -32,7 +33,7 @@ def invoice_process_webhook(request):
         logger.warning(f'starkbank_webhook: received unexpected subscription {event.subscription}')
         return HttpResponse(status=200)
 
-    create_webhook_invoice_event(event)
+    create_webhook_invoice_event(event, payload)
     return HttpResponse(status=200)
 
 

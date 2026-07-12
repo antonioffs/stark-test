@@ -11,6 +11,15 @@ from starkbank_app.models import Customer, Invoice
 
 logger = logging.getLogger(__name__)
 
+DESTINATION_ACCOUNT = {
+      'bank_code': '20018183',
+      'branch_code': '0001',
+      'account_number': '6341320293482496',
+      'account_type': 'payment',
+      'name': 'Stark Bank S.A.',
+      'tax_id': '20.018.183/0001-80',
+  }
+
 
 @shared_task
 def generate_invoices():
@@ -28,10 +37,10 @@ def generate_invoices():
 def emit_invoice(invoice, user):
     logger.info(f'emit_invoice: starting for invoice {invoice.uuid}')
 
-    claimed = Invoice.objects.filter(pk=invoice.pk, status=Invoice.Status.PENDING).update(
+    invoice_to_process = Invoice.objects.filter(pk=invoice.pk, status=Invoice.Status.PENDING).update(
         status=Invoice.Status.PROCESSING
     )
-    if not claimed:
+    if not invoice_to_process:
         logger.info(f'emit_invoice: invoice {invoice.uuid} already claimed by another run, skipping')
         return
 
@@ -65,3 +74,36 @@ def emit_invoices(invoice_ids: list = None):
         emit_invoice(invoice, user)
 
     logger.info('emit_invoices: finished')
+
+
+@shared_task
+def send_invoice_transfer(gateway_reference_id, amount, fee):
+    logger.info(f'send_invoice_transfer: starting for invoice gateway_reference_id={gateway_reference_id}')
+
+    paid_invoices = Invoice.objects.filter(
+        gateway_reference_id=gateway_reference_id, status=Invoice.Status.PAID,
+    ).update(status=Invoice.Status.TRANSFERRED)
+    if not paid_invoices:
+        logger.info(
+            f'send_invoice_transfer: invoice {gateway_reference_id} not eligible '
+            f'(already transferred or not paid), skipping'
+        )
+        return
+
+    net_amount = amount - fee
+    user = StarkBankClient.client()
+    transfer = starkbank.Transfer(
+        amount=net_amount,
+        external_id=gateway_reference_id,
+        **DESTINATION_ACCOUNT,
+    )
+    created_transfer = starkbank.transfer.create([transfer], user=user)[0]
+
+    Invoice.objects.filter(gateway_reference_id=gateway_reference_id).update(
+        gateway_transfer_reference_id=created_transfer.id,
+    )
+
+    logger.info(
+        f'send_invoice_transfer: finished for invoice {gateway_reference_id}, '
+        f'transfer_reference_id={created_transfer.id}, net_amount={net_amount}'
+    )
