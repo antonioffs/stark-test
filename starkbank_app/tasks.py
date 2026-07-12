@@ -12,36 +12,40 @@ from starkbank_app.models import Customer, Invoice
 logger = logging.getLogger(__name__)
 
 DESTINATION_ACCOUNT = {
-      'bank_code': '20018183',
-      'branch_code': '0001',
-      'account_number': '6341320293482496',
-      'account_type': 'payment',
-      'name': 'Stark Bank S.A.',
-      'tax_id': '20.018.183/0001-80',
-  }
+    "bank_code": "20018183",
+    "branch_code": "0001",
+    "account_number": "6341320293482496",
+    "account_type": "payment",
+    "name": "Stark Bank S.A.",
+    "tax_id": "20.018.183/0001-80",
+}
 
 
 @shared_task
 def generate_invoices():
     invoices_count = random.randint(8, 12)
-    logger.info(f'generate_invoices: starting, generating {invoices_count} invoices')
+    logger.info(f"generate_invoices: starting, generating {invoices_count} invoices")
 
     for _ in range(invoices_count):
         with transaction.atomic():
-            customer = Customer.objects.create(fullname=generate_fullname(), document=generate_cpf())
+            customer = Customer.objects.create(
+                fullname=generate_fullname(), document=generate_cpf()
+            )
             Invoice.objects.create(customer=customer, amount=random.randint(100, 10000))
 
-    logger.info(f'generate_invoices: finished, generated {invoices_count} invoices')
+    logger.info(f"generate_invoices: finished, generated {invoices_count} invoices")
 
 
 def emit_invoice(invoice, user):
-    logger.info(f'emit_invoice: starting for invoice {invoice.uuid}')
+    logger.info(f"emit_invoice: starting for invoice {invoice.uuid}")
 
-    invoice_to_process = Invoice.objects.filter(pk=invoice.pk, status=Invoice.Status.PENDING).update(
-        status=Invoice.Status.PROCESSING
-    )
+    invoice_to_process = Invoice.objects.filter(
+        pk=invoice.pk, status=Invoice.Status.PENDING
+    ).update(status=Invoice.Status.PROCESSING)
     if not invoice_to_process:
-        logger.info(f'emit_invoice: invoice {invoice.uuid} already claimed by another run, skipping')
+        logger.info(
+            f"emit_invoice: invoice {invoice.uuid} already claimed by another run, skipping"
+        )
         return
 
     stark_invoice = starkbank.Invoice(
@@ -52,41 +56,50 @@ def emit_invoice(invoice, user):
     created_invoice = starkbank.invoice.create([stark_invoice], user=user)[0]
 
     invoice.gateway_reference_id = created_invoice.id
-    invoice.save(update_fields=['gateway_reference_id'])
+    invoice.save(update_fields=["gateway_reference_id"])
 
-    logger.info(f'emit_invoice: finished for invoice {invoice.uuid}, gateway_reference_id={invoice.gateway_reference_id}')
+    logger.info(
+        f"emit_invoice: finished for invoice {invoice.uuid}, gateway_reference_id={invoice.gateway_reference_id}"
+    )
 
 
 @shared_task
 def emit_invoices(invoice_ids: list = None):
     user = StarkBankClient.client()
-    pending_invoices = Invoice.objects.filter(status=Invoice.Status.PENDING).select_related('customer')
+    pending_invoices = Invoice.objects.filter(
+        status=Invoice.Status.PENDING
+    ).select_related("customer")
 
     if invoice_ids:
-        logger.info(f'emit_invoices: starting for {len(invoice_ids)} selected invoices')
+        logger.info(f"emit_invoices: starting for {len(invoice_ids)} selected invoices")
         pending_invoices = pending_invoices.filter(pk__in=invoice_ids)
     else:
         eligible_count = random.randint(8, 12)
-        logger.info(f'emit_invoices: starting, up to {eligible_count} invoices eligible')
-        pending_invoices = pending_invoices.order_by('created_at')[:eligible_count]
+        logger.info(
+            f"emit_invoices: starting, up to {eligible_count} invoices eligible"
+        )
+        pending_invoices = pending_invoices.order_by("created_at")[:eligible_count]
 
     for invoice in pending_invoices:
         emit_invoice(invoice, user)
 
-    logger.info('emit_invoices: finished')
+    logger.info("emit_invoices: finished")
 
 
 @shared_task
 def send_invoice_transfer(gateway_reference_id, amount, fee):
-    logger.info(f'send_invoice_transfer: starting for invoice gateway_reference_id={gateway_reference_id}')
+    logger.info(
+        f"send_invoice_transfer: starting for invoice gateway_reference_id={gateway_reference_id}"
+    )
 
     paid_invoices = Invoice.objects.filter(
-        gateway_reference_id=gateway_reference_id, status=Invoice.Status.PAID,
+        gateway_reference_id=gateway_reference_id,
+        status=Invoice.Status.PAID,
     ).update(status=Invoice.Status.TRANSFERRED)
     if not paid_invoices:
         logger.info(
-            f'send_invoice_transfer: invoice {gateway_reference_id} not eligible '
-            f'(already transferred or not paid), skipping'
+            f"send_invoice_transfer: invoice {gateway_reference_id} not eligible "
+            f"(already transferred or not paid), skipping"
         )
         return
 
@@ -104,6 +117,6 @@ def send_invoice_transfer(gateway_reference_id, amount, fee):
     )
 
     logger.info(
-        f'send_invoice_transfer: finished for invoice {gateway_reference_id}, '
-        f'transfer_reference_id={created_transfer.id}, net_amount={net_amount}'
+        f"send_invoice_transfer: finished for invoice {gateway_reference_id}, "
+        f"transfer_reference_id={created_transfer.id}, net_amount={net_amount}"
     )

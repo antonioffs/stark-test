@@ -7,17 +7,34 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('starkbank_app', '0001_initial'),
+        ("starkbank_app", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='WebhookInvoiceEvent',
+            name="WebhookInvoiceEvent",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('event_id', models.CharField(max_length=50, unique=True)),
-                ('received_at', models.DateTimeField(auto_now_add=True)),
-                ('invoice', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='webhook_events', to='starkbank_app.invoice')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("event_id", models.CharField(max_length=50, unique=True)),
+                ("received_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "invoice",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="webhook_events",
+                        to="starkbank_app.invoice",
+                    ),
+                ),
             ],
         ),
     ]

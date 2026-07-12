@@ -6,48 +6,59 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('starkbank_app', '0002_webhookinvoiceevent'),
+        ("starkbank_app", "0002_webhookinvoiceevent"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='invoice',
-            name='gateway_transfer_reference_id',
+            model_name="invoice",
+            name="gateway_transfer_reference_id",
             field=models.CharField(blank=True, max_length=50, null=True, unique=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='amount',
+            model_name="webhookinvoiceevent",
+            name="amount",
             field=models.PositiveIntegerField(null=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='expiration',
+            model_name="webhookinvoiceevent",
+            name="expiration",
             field=models.DurationField(null=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='fee',
+            model_name="webhookinvoiceevent",
+            name="fee",
             field=models.PositiveIntegerField(null=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='interest_percent',
+            model_name="webhookinvoiceevent",
+            name="interest_percent",
             field=models.PositiveIntegerField(null=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='payload',
+            model_name="webhookinvoiceevent",
+            name="payload",
             field=models.TextField(null=True),
         ),
         migrations.AddField(
-            model_name='webhookinvoiceevent',
-            name='status',
+            model_name="webhookinvoiceevent",
+            name="status",
             field=models.CharField(max_length=20, null=True),
         ),
         migrations.AlterField(
-            model_name='invoice',
-            name='status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('processing', 'Processing'), ('paid', 'Paid'), ('transferred', 'Transferred'), ('canceled', 'Canceled'), ('refused', 'Refused')], default='pending', max_length=20),
+            model_name="invoice",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("pending", "Pending"),
+                    ("processing", "Processing"),
+                    ("paid", "Paid"),
+                    ("transferred", "Transferred"),
+                    ("canceled", "Canceled"),
+                    ("refused", "Refused"),
+                ],
+                default="pending",
+                max_length=20,
+            ),
         ),
     ]
