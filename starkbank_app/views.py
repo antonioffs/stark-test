@@ -1,6 +1,5 @@
 import logging
 
-from django.db import IntegrityError
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -9,8 +8,7 @@ import starkbank
 from starkbank.error import InvalidSignatureError
 
 from starkbank_app.client import StarkBankClient
-from starkbank_app.models import WebhookInvoiceEvent, Invoice
-
+from starkbank_app.services import create_webhook_invoice_event
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +32,7 @@ def invoice_process_webhook(request):
         logger.warning(f'starkbank_webhook: received unexpected subscription {event.subscription}')
         return HttpResponse(status=200)
 
-    invoice = Invoice.objects.filter(gateway_reference_id=event.log.invoice.id).first()
-    try:
-        WebhookInvoiceEvent.objects.create(event_id=event.id, invoice=invoice)
-    except IntegrityError:
-        logger.info(f'starkbank_webhook: event {event.id} already processed, skipping')
-        return HttpResponse(status=200)
-
-    if event.log.type == 'paid':
-        Invoice.mark_invoice_as_paid(gateway_reference_id=event.log.invoice.id)
-
+    create_webhook_invoice_event(event)
     return HttpResponse(status=200)
 
 
