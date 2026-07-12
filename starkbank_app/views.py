@@ -34,8 +34,9 @@ def invoice_process_webhook(request):
         logger.warning(f'starkbank_webhook: received unexpected subscription {event.subscription}')
         return HttpResponse(status=200)
 
+    invoice = Invoice.objects.filter(gateway_reference_id=event.log.invoice.id).first()
     try:
-        WebhookInvoiceEvent.objects.create(event_id=event.id, gateway_reference_id=event.log.invoice.id)
+        WebhookInvoiceEvent.objects.create(event_id=event.id, invoice=invoice)
     except IntegrityError:
         logger.info(f'starkbank_webhook: event {event.id} already processed, skipping')
         return HttpResponse(status=200)

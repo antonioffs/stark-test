@@ -55,7 +55,7 @@ class Invoice(models.Model):
 
 class WebhookInvoiceEvent(models.Model):
     event_id = models.CharField(max_length=50, unique=True)
-    gateway_reference_id = models.CharField(max_length=50, null=True, blank=True)
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, null=True, blank=True, related_name='webhook_events')
     received_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
