@@ -1,8 +1,10 @@
+from datetime import timedelta
 from itertools import count
 from unittest.mock import patch
 
 import pytest
 import starkbank
+from django.utils import timezone
 from starkbank.error import InvalidSignatureError
 
 from starkbank_app.client import StarkBankClient
@@ -13,9 +15,16 @@ from starkbank_app.tasks import emit_invoice, emit_invoices, generate_invoices
 
 
 class FakeInvoiceLog:
-    def __init__(self, event_type, invoice_gateway_id):
+    def __init__(self, event_type, invoice_gateway_id, amount=1000, fee=50, interest=10, expiration=timedelta(days=2)):
         self.type = event_type
-        self.invoice = type('FakeInvoice', (), {'id': invoice_gateway_id})()
+        self.invoice = type('FakeInvoice', (), {
+            'id': invoice_gateway_id,
+            'status': event_type,
+            'amount': amount,
+            'fee': fee,
+            'interest': interest,
+            'expiration': expiration,
+        })()
 
 
 class FakeEvent:
@@ -200,6 +209,56 @@ def test_webhook_marks_invoice_as_paid_on_paid_event(mock_parse, client):
 
 @pytest.mark.django_db
 @patch('starkbank_app.views.starkbank.event.parse')
+def test_webhook_marks_invoice_as_refused_on_overdue_event(mock_parse, client):
+    invoice = _create_pending_invoice()
+    invoice.gateway_reference_id = 'gateway-id-fixed'
+    invoice.status = Invoice.Status.PROCESSING
+    invoice.save()
+
+    mock_parse.return_value = FakeEvent(
+        event_id='event-1', subscription='invoice', log=FakeInvoiceLog('overdue', 'gateway-id-fixed'),
+    )
+
+    response = client.post(
+        '/invoice-webhook/starkbank', data='{}', content_type='application/json',
+        HTTP_DIGITAL_SIGNATURE='valid',
+    )
+
+    assert response.status_code == 200
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.REFUSED
+
+    event = WebhookInvoiceEvent.objects.get(event_id='event-1')
+    assert event.status == 'overdue'
+
+
+@pytest.mark.django_db
+@patch('starkbank_app.views.starkbank.event.parse')
+def test_webhook_marks_invoice_as_canceled_on_canceled_event(mock_parse, client):
+    invoice = _create_pending_invoice()
+    invoice.gateway_reference_id = 'gateway-id-fixed'
+    invoice.status = Invoice.Status.PROCESSING
+    invoice.save()
+
+    mock_parse.return_value = FakeEvent(
+        event_id='event-1', subscription='invoice', log=FakeInvoiceLog('canceled', 'gateway-id-fixed'),
+    )
+
+    response = client.post(
+        '/invoice-webhook/starkbank', data='{}', content_type='application/json',
+        HTTP_DIGITAL_SIGNATURE='valid',
+    )
+
+    assert response.status_code == 200
+    invoice.refresh_from_db()
+    assert invoice.status == Invoice.Status.CANCELED
+
+    event = WebhookInvoiceEvent.objects.get(event_id='event-1')
+    assert event.status == 'canceled'
+
+
+@pytest.mark.django_db
+@patch('starkbank_app.views.starkbank.event.parse')
 def test_webhook_does_not_change_status_for_non_paid_event(mock_parse, client):
     invoice = _create_pending_invoice()
     invoice.gateway_reference_id = 'gateway-id-fixed'
@@ -226,7 +285,10 @@ def test_webhook_does_not_reprocess_redelivered_event(mock_parse, client):
     invoice = _create_pending_invoice()
     invoice.gateway_reference_id = 'gateway-id-fixed'
     invoice.save()
-    WebhookInvoiceEvent.objects.create(event_id='event-1', invoice=invoice)
+    WebhookInvoiceEvent.objects.create(
+        event_id='event-1', invoice=invoice, status='paid', amount=1000, fee=50, interest_percent=10,
+        expiration=timedelta(days=2), payload='{}',
+    )
 
     mock_parse.return_value = FakeEvent(
         event_id='event-1', subscription='invoice', log=FakeInvoiceLog('paid', 'gateway-id-fixed'),
