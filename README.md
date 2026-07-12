@@ -1,6 +1,6 @@
 # Starkbank challenge
 
-Stark Bank backend developer challenge.
+Stark Bank backend developer challenge, made to evaluate the skills to join the great house of the north.
 
 ## Requirements
 
