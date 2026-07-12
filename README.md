@@ -26,6 +26,7 @@ make logs             # acompanha os logs
 
 make migrate          # aplica as migrations
 make makemigrations   # gera novas migrations
+make createsuperuser  # cria um superusuário para acesso ao admin
 make check            # roda o system check do Django
 make shell            # abre o shell do Django
 make test             # roda os testes
