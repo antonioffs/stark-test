@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from starkbank_app.models import Customer, Invoice
+from starkbank_app.models import Customer, Invoice, WebhookInvoiceEvent
 from starkbank_app.tasks import emit_invoices
 
 
@@ -22,3 +22,15 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('gateway_reference_id', 'customer__fullname', 'customer__document')
     actions = [trigger_invoice_emission]
+
+
+@admin.register(WebhookInvoiceEvent)
+class WebhookEventAdmin(admin.ModelAdmin):
+    list_display = ('event_id', 'received_at')
+    readonly_fields = ('event_id', 'received_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
