@@ -1,4 +1,4 @@
-.PHONY: migrate makemigrations check shell test build up up-d down logs
+.PHONY: migrate makemigrations check shell test format build up up-d down logs
 
 define run_in_container
 	@redis_was_running=$$(docker compose ps --status running -q redis); \
@@ -27,6 +27,9 @@ shell:
 
 test:
 	$(call run_in_container,pytest)
+
+format:
+	$(call run_in_container,black .)
 
 build:
 	docker compose build
