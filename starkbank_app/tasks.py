@@ -114,6 +114,7 @@ def send_invoice_transfer(gateway_reference_id, amount, fee):
 
     Invoice.objects.filter(gateway_reference_id=gateway_reference_id).update(
         gateway_transfer_reference_id=created_transfer.id,
+        gateway_transfer_status=created_transfer.status,
     )
 
     logger.info(

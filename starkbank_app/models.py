@@ -25,6 +25,13 @@ class Invoice(models.Model):
         CANCELED = "canceled", "Canceled"
         REFUSED = "refused", "Refused"
 
+    class TransferStatus(models.TextChoices):
+        CREATED = "created", "Created"
+        PROCESSING = "processing", "Processing"
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
+        CANCELED = "canceled", "Canceled"
+
     uuid = models.UUIDField(default=uuid4, editable=False, unique=True)
     customer = models.ForeignKey(
         Customer, on_delete=models.PROTECT, related_name="invoices"
@@ -34,6 +41,9 @@ class Invoice(models.Model):
     )
     gateway_transfer_reference_id = models.CharField(
         max_length=50, unique=True, null=True, blank=True
+    )
+    gateway_transfer_status = models.CharField(
+        max_length=20, choices=TransferStatus.choices, null=True, blank=True
     )
     amount = models.PositiveIntegerField()
     status = models.CharField(
