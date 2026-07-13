@@ -27,18 +27,18 @@ SECRET_KEY = config("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config("DEBUG", default=False, cast=bool)
 
+# Set when running behind Caddy (docker-compose.prod.yml) with a real domain.
+DOMAIN = config("DOMAIN", default="")
+
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lambda v: v.split(",")
 )
+if DOMAIN and DOMAIN not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(DOMAIN)
 
-# Set when running behind Caddy (docker-compose.prod.yml) with a real domain.
-DOMAIN = config("DOMAIN", default="")
 if DOMAIN:
     CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}"]
-
-# Caddy terminates HTTPS and forwards to `web` over plain HTTP, setting this header —
-# without it, Django thinks every request is insecure and CSRF's origin check fails.
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -172,6 +172,6 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-STARKBANK_KEY = config("STARKBANK_KEY").encode().decode("unicode_escape")
+STARKBANK_KEY = config("STARKBANK_KEY").replace("\\n", "\n")
 STARKBANK_PROJECT_ID = config("STARKBANK_PROJECT_ID")
 STARKBANK_ENVIRONMENT = config("STARKBANK_ENVIRONMENT", default="sandbox")

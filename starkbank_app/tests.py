@@ -477,7 +477,7 @@ def _create_paid_invoice(gateway_reference_id="gateway-id-fixed", amount=1000):
     "starkbank_app.tasks.starkbank.transfer.create",
     return_value=[FakeCreatedTransfer("transfer-id-fixed")],
 )
-def test_send_invoice_transfer_sends_net_amount_and_marks_invoice_transferred(
+def test_send_invoice_transfer_sends_net_amount_and_marks_invoice_transfer_in_progress(
     mock_create,
 ):
     invoice = _create_paid_invoice()
@@ -491,9 +491,25 @@ def test_send_invoice_transfer_sends_net_amount_and_marks_invoice_transferred(
     assert sent_transfer.bank_code == "20018183"
 
     invoice.refresh_from_db()
-    assert invoice.status == Invoice.Status.TRANSFERRED
+    assert invoice.status == Invoice.Status.TRANSFER_IN_PROGRESS
     assert invoice.gateway_transfer_reference_id == "transfer-id-fixed"
     assert invoice.gateway_transfer_status == Invoice.TransferStatus.PROCESSING
+
+
+@pytest.mark.django_db
+@patch(
+    "starkbank_app.tasks.starkbank.transfer.create",
+    return_value=[FakeCreatedTransfer("transfer-id-fixed", status="created")],
+)
+def test_send_invoice_transfer_marks_transfer_requested_when_gateway_returns_created(
+    mock_create,
+):
+    invoice = _create_paid_invoice()
+
+    send_invoice_transfer(gateway_reference_id="gateway-id-fixed", amount=1000, fee=50)
+
+    invoice.refresh_from_db()
+    assert invoice.gateway_transfer_status == Invoice.TransferStatus.TRANSFER_REQUESTED
 
 
 @pytest.mark.django_db

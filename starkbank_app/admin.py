@@ -35,6 +35,7 @@ class InvoiceAdmin(DjangoQLSearchMixin, admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status",)
+    list_select_related = ("customer",)
     search_fields = (
         "gateway_reference_id",
         "customer__uuid",

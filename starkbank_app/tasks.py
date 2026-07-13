@@ -95,11 +95,11 @@ def send_invoice_transfer(gateway_reference_id, amount, fee):
     paid_invoices = Invoice.objects.filter(
         gateway_reference_id=gateway_reference_id,
         status=Invoice.Status.PAID,
-    ).update(status=Invoice.Status.TRANSFERRED)
+    ).update(status=Invoice.Status.TRANSFER_IN_PROGRESS)
     if not paid_invoices:
         logger.info(
             f"send_invoice_transfer: invoice {gateway_reference_id} not eligible "
-            f"(already transferred or not paid), skipping"
+            f"(already being transferred or not paid), skipping"
         )
         return
 

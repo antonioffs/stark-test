@@ -34,7 +34,7 @@ cp .env.example .env
 
 The app exposes an invoice webhook endpoint at `/invoice-webhook/starkbank`, which validates the Stark Bank signature, deduplicates redelivered events, and reacts to `paid`/`overdue`/`canceled` invoice statuses (marking the invoice accordingly and, when paid, sending the net amount via a Transfer).
 
-For local development, `docker compose up` also starts an `ngrok` tunnel and a one-shot `webhook-registrar` service that automatically discovers the tunnel's public URL and registers/updates it as a Webhook on your Stark Bank Sandbox Project — no manual step required. This only needs `NGROK_AUTHTOKEN` set in `.env`.
+For local development, `make up` also starts an `ngrok` tunnel and a one-shot `webhook-registrar` service that automatically discovers the tunnel's public URL and registers/updates it as a Webhook on your Stark Bank Sandbox Project — no manual step required. This only needs `NGROK_AUTHTOKEN` set in `.env`.
 
 ## Commands
 
@@ -79,11 +79,17 @@ flowchart TD
     J -->|"canceled"| M["mark_invoice_as_cancelled"]
 
     K --> N["send_invoice_transfer.delay(...)"]
-    N --> O{"Atomic lock PAID -> TRANSFERRED"}
-    O -->|"lock lost (already transferred)"| Z4(["skip - duplicate trigger"])
+    N --> O{"Atomic lock PAID -> TRANSFER_IN_PROGRESS"}
+    O -->|"lock lost (already being transferred)"| Z4(["skip - duplicate trigger"])
     O -->|"lock acquired"| P["net_amount = amount - fee"]
     P --> Q["starkbank.transfer.create (external_id = gateway_reference_id)"]
-    Q --> R["save gateway_transfer_reference_id + gateway_transfer_status"]
+    Q --> R["save gateway_transfer_reference_id"]
+    R --> S{"transfer status == 'created'?"}
+    S -->|"yes"| T["gateway_transfer_status = TRANSFER_REQUESTED"]
+    S -->|"no (processing/success/failed/canceled)"| U["gateway_transfer_status = raw status"]
+    T --> V(["Invoice.status stays TRANSFER_IN_PROGRESS"])
+    U --> V
+    V -.->|"future: Transfer webhook (not implemented yet)"| W["Invoice.status = TRANSFERRED (final)"]
 ```
 
 **Focal points**
@@ -91,7 +97,7 @@ flowchart TD
 - **Atomic lock on emission** (`PENDING -> PROCESSING`): prevents the same invoice from being sent to Stark Bank twice if the periodic task and a manual admin action overlap.
 - **Webhook signature validation**: every request is verified against the Stark Bank public key before any processing; invalid signatures are rejected with `400` and never reach business logic.
 - **Idempotency by `event_id`**: Stark Bank may redeliver the same webhook event; a unique `event_id` (with a savepoint around the insert) guarantees a redelivered event is a no-op.
-- **Atomic lock on transfer** (`PAID -> TRANSFERRED`): guarantees the net-amount Transfer is triggered at most once per invoice, even if two events point to the same invoice as paid.
+- **Atomic lock on transfer** (`PAID -> TRANSFER_IN_PROGRESS`): guarantees `transfer.create()` is called at most once per invoice, even if two events point to the same invoice as paid.
 - **`external_id` on the Transfer**: on top of the local lock, Stark Bank's own API deduplicates transfers by `external_id = gateway_reference_id`, adding a second, independent safety net.
 
 
@@ -100,12 +106,10 @@ flowchart TD
 Besides the automated 3-hour cycle, invoices can be created and issued manually through the Django admin:
 
 1. **Create a Customer** — `Starkbank_app > Customers > Add customer`, filling in `fullname` and `document`. The `document` field validates the CPF format on save (same `validate-docbr` check used by `generate_invoices`) — an invalid CPF is rejected before the Customer is created.
-2. **Create an Invoice** — `Starkbank_app > Invoices > Add invoice`, selecting the `Customer` created above and the `amount` (in cents). Leave `status` as the default (`Pending`) and `gateway_reference_id`/`gateway_transfer_*` fields empty — they are only filled once the invoice is actually issued/paid/transferred.
+2. **Create an Invoice** — `Starkbank_app > Invoices > Add invoice`, selecting the `Customer` created above and the `amount` (in cents). Leave `status` as the default (`Pending`).
 3. **Issue it** — select the invoice in the list and run either the `Emit selected invoices` or `Emit all pending invoices` action.
 
-**Premise: the invoice must be in `Pending` status for the emission actions to have any effect.** Both actions run the same `emit_invoices` task, which only ever picks up invoices filtered by `status=Pending`:
-
+**Premise: the invoice must be in `Pending` status for the emission actions to have any effect.**
 - `Emit selected invoices` silently ignores any selected invoice that isn't `Pending` (it's excluded from the queryset before the task runs) — no error, no message, it just won't be sent.
 - `Emit all pending invoices` ignores the selection entirely and always operates on `Pending` invoices across the whole table (up to a random 8-12 batch, same as the periodic task).
 
-This is intentional: once an invoice moves past `Pending` (`Processing`, `Paid`, `Transferred`, `Refused` or `Canceled`), it has either already been sent to Stark Bank or reached a terminal state — re-emitting it would risk creating a duplicate Invoice on the Sandbox.

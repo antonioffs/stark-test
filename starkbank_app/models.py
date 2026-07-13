@@ -23,12 +23,13 @@ class Invoice(models.Model):
         PENDING = "pending", "Pending"
         PROCESSING = "processing", "Processing"
         PAID = "paid", "Paid"
+        TRANSFER_IN_PROGRESS = "transfer_in_progress", "Transfer in progress"
         TRANSFERRED = "transferred", "Transferred"
         CANCELED = "canceled", "Canceled"
         REFUSED = "refused", "Refused"
 
     class TransferStatus(models.TextChoices):
-        CREATED = "created", "Created"
+        TRANSFER_REQUESTED = "created", "Transfer requested"
         PROCESSING = "processing", "Processing"
         SUCCESS = "success", "Success"
         FAILED = "failed", "Failed"
