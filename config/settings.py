@@ -31,6 +31,15 @@ ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=lambda v: v.split(",")
 )
 
+# Set when running behind Caddy (docker-compose.prod.yml) with a real domain.
+DOMAIN = config("DOMAIN", default="")
+if DOMAIN:
+    CSRF_TRUSTED_ORIGINS = [f"https://{DOMAIN}"]
+
+# Caddy terminates HTTPS and forwards to `web` over plain HTTP, setting this header —
+# without it, Django thinks every request is insecure and CSRF's origin check fails.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 # Application definition
 
