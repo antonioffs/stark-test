@@ -18,8 +18,9 @@ from starkbank_app.tasks import (
 
 
 class FakeCreatedTransfer:
-    def __init__(self, transfer_id):
+    def __init__(self, transfer_id, status="processing"):
         self.id = transfer_id
+        self.status = status
 
 
 class FakeInvoiceLog:
@@ -424,6 +425,7 @@ def test_send_invoice_transfer_sends_net_amount_and_marks_invoice_transferred(
     invoice.refresh_from_db()
     assert invoice.status == Invoice.Status.TRANSFERRED
     assert invoice.gateway_transfer_reference_id == "transfer-id-fixed"
+    assert invoice.gateway_transfer_status == Invoice.TransferStatus.PROCESSING
 
 
 @pytest.mark.django_db

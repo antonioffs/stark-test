@@ -1,11 +1,12 @@
 from django.contrib import admin
+from djangoql.admin import DjangoQLSearchMixin
 
 from starkbank_app.models import Customer, Invoice, WebhookInvoiceEvent
 from starkbank_app.tasks import emit_invoices
 
 
 @admin.register(Customer)
-class CustomerAdmin(admin.ModelAdmin):
+class CustomerAdmin(DjangoQLSearchMixin, admin.ModelAdmin):
     list_display = ("uuid", "fullname", "document")
     search_fields = ("uuid", "fullname", "document")
 
@@ -24,7 +25,7 @@ def trigger_pending_invoice_emission(modeladmin, request, queryset):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(DjangoQLSearchMixin, admin.ModelAdmin):
     list_display = (
         "uuid",
         "customer",
@@ -44,7 +45,7 @@ class InvoiceAdmin(admin.ModelAdmin):
 
 
 @admin.register(WebhookInvoiceEvent)
-class WebhookEventAdmin(admin.ModelAdmin):
+class WebhookEventAdmin(DjangoQLSearchMixin, admin.ModelAdmin):
     list_display = (
         "event_id",
         "invoice_gateway_reference_id",
