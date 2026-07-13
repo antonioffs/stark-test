@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pytest
 import starkbank
+from django.core.exceptions import ValidationError
+from django.test import override_settings
 from starkbank.error import InvalidSignatureError
 
 from starkbank_app.client import StarkBankClient
@@ -65,6 +67,72 @@ def test_is_valid_cpf_rejects_repeated_digits():
 
 def test_is_valid_cpf_rejects_wrong_length():
     assert not is_valid_cpf("123")
+
+
+@pytest.mark.django_db
+def test_customer_full_clean_accepts_valid_cpf():
+    customer = Customer(fullname="Jon Snow", document=generate_cpf())
+    customer.full_clean()
+
+
+@pytest.mark.django_db
+def test_customer_full_clean_rejects_invalid_cpf():
+    customer = Customer(fullname="Jon Snow", document="11111111111")
+    with pytest.raises(ValidationError):
+        customer.full_clean()
+
+
+@pytest.mark.django_db
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+)
+def test_invoice_admin_add_view_does_not_show_gateway_fields(admin_client):
+    response = admin_client.get("/admin/starkbank_app/invoice/add/")
+
+    assert response.status_code == 200
+    assert set(response.context["adminform"].form.fields) == {
+        "customer",
+        "amount",
+        "status",
+    }
+
+
+@pytest.mark.django_db
+def test_invoice_admin_change_view_keeps_gateway_and_identity_fields_untouched(
+    admin_client,
+):
+    invoice = _create_paid_invoice()
+    other_customer = Customer.objects.create(
+        fullname="Outra Pessoa", document=generate_cpf()
+    )
+    url = f"/admin/starkbank_app/invoice/{invoice.pk}/change/"
+
+    response = admin_client.post(
+        url,
+        {
+            "customer": other_customer.pk,
+            "amount": 9999,
+            "status": Invoice.Status.CANCELED,
+            "gateway_reference_id": "tampered-id",
+            "gateway_transfer_reference_id": "tampered-transfer-id",
+            "gateway_transfer_status": Invoice.TransferStatus.FAILED,
+            "_save": "Save",
+        },
+    )
+
+    assert response.status_code == 302
+    invoice.refresh_from_db()
+    assert invoice.customer_id != other_customer.pk
+    assert invoice.amount == 1000
+    assert invoice.gateway_reference_id == "gateway-id-fixed"
+    assert invoice.gateway_transfer_reference_id is None
+    assert invoice.gateway_transfer_status is None
+    assert invoice.status == Invoice.Status.CANCELED
 
 
 def test_generate_fullname_returns_a_non_empty_string():

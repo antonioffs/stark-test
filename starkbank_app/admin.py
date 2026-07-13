@@ -43,6 +43,23 @@ class InvoiceAdmin(DjangoQLSearchMixin, admin.ModelAdmin):
     )
     actions = [trigger_invoice_emission, trigger_pending_invoice_emission]
 
+    gateway_fields = (
+        "gateway_reference_id",
+        "gateway_transfer_reference_id",
+        "gateway_transfer_status",
+    )
+
+    def get_fields(self, request, obj=None):
+        fields = ["customer", *self.gateway_fields, "amount", "status"]
+        if obj is None:
+            fields = [field for field in fields if field not in self.gateway_fields]
+        return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is None:
+            return ()
+        return ("customer", "amount", *self.gateway_fields)
+
 
 @admin.register(WebhookInvoiceEvent)
 class WebhookEventAdmin(DjangoQLSearchMixin, admin.ModelAdmin):

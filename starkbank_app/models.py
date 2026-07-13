@@ -3,13 +3,15 @@ from uuid import uuid4
 
 from django.db import models
 
+from starkbank_app.fake import validate_cpf
+
 logger = logging.getLogger(__name__)
 
 
 class Customer(models.Model):
     uuid = models.UUIDField(default=uuid4, editable=False, unique=True)
     fullname = models.CharField(max_length=200)
-    document = models.CharField(max_length=11)
+    document = models.CharField(max_length=11, validators=[validate_cpf])
 
     def __str__(self):
         return self.fullname

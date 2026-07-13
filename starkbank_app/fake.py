@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from faker import Faker
 from validate_docbr import CPF
 
@@ -11,6 +12,11 @@ def generate_cpf():
 
 def is_valid_cpf(document):
     return _cpf.validate(document)
+
+
+def validate_cpf(document):
+    if not is_valid_cpf(document):
+        raise ValidationError(f"{document} is not a valid CPF.")
 
 
 def generate_fullname():
