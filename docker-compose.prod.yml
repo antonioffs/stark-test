@@ -16,18 +16,7 @@ services:
 
   celery-worker:
     build: .
-    command: celery -A config worker -l info
-    env_file:
-      - .env
-    volumes:
-      - sqlite_data:/app/data
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  celery-beat:
-    build: .
-    command: celery -A config beat -l info
+    command: celery -A config worker --beat -l info --concurrency=1
     env_file:
       - .env
     volumes:
